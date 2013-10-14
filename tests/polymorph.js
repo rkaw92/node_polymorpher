@@ -1,4 +1,5 @@
 var polymorph = require('../polymorph.js').polymorph;
+var assert = require('assert');
 
 //TODO: include some corner cases (ambigious, overlapping functions, and no-candidate situations).
 
@@ -28,13 +29,30 @@ function _parseJSONFromString(inputString, callback){
 }
 _parseJSONFromString.polymorph = {types: ['string', 'function']};
 
-var parseJSON = polymorph([_parseJSONFromGetter, _parseJSONFromString, _parseJSONFromContainer]);
+function _parseSavedSnippet(snippetNumber, callback){
+	callback({code: 'someCode'});
+}
+_parseSavedSnippet.polymorph = {types: ['number', 'function']};
+
+function _parseNumber(number, callback){
+	callback(number);
+}
+_parseNumber.polymorph = {types: ['number', 'function']};
+
+var parseJSON = polymorph([_parseJSONFromGetter, _parseJSONFromString, _parseJSONFromContainer, _parseSavedSnippet, _parseNumber]);
+var parseJSONPermissive = polymorph([_parseJSONFromGetter, _parseJSONFromString, _parseJSONFromContainer, _parseSavedSnippet, _parseNumber], {unambigiousOnly: false});
+
+
+// === End of definitions - tests follow ===
+
 
 describe('polymorph', function(){
 	it('should run the synchronous, string-based candidate of the polymorphed function', function(done){
 		// Note: this test is still asynchronous because I chose to make both implementations' semantics equal (they both use a callback, even if no real async happens).
 		parseJSON('{"a": 1, "b": 2}', function(data){
-			done((data.a === 1 && data.b === 2) ? undefined : new Error('Candidate choice probably failed!'));
+			assert.strictEqual(data.a, 1);
+			assert.strictEqual(data.b, 2);
+			done();
 		});
 	});
 	it('should use the synchronous, container-based candidate of the polymorphed function', function(done){
@@ -44,12 +62,30 @@ describe('polymorph', function(){
 			}
 		},
 		function(data){
-			done((data.boxed === true) ? undefined : new Error('Polymorphic failure!'));
+			assert.strictEqual(data.boxed, true);
+			done();
 		});
 	});
 	it('should run the asynchronous, fetcher-using candidate of the polymorphed function', function(done){
 		parseJSON(fetchContent, function(data){
-			done((data.version === 1.01) ? undefined : new Error('Candidate choice probably failed!'));
+			assert.strictEqual(data.version, 1.01);
+			done();
+		});
+	});
+	it('should not be able to choose either numeric candidate and fail', function(){
+		assert.throws(function(){
+			parseJSON(1, function(){});
+		});
+	});
+	it('should not be able to choose any candidate', function(){
+		assert.throws(function(){
+			parseJSON(undefined, function(){});
+		});
+	});
+	it('should choose the first matching candidate', function(done){
+		parseJSONPermissive(1, function(data){
+			assert.strictEqual(data.code, 'someCode');
+			done();
 		});
 	});
 });

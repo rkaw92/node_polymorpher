@@ -4,6 +4,9 @@ function checkArguments(callHandler, args, types){
 		throw new Error('Can not check argument types - the function has more formal arguments than defined type constraints. Aborting.');
 	}
 	var matching = true;
+	if(!Array.isArray(types)){
+		throw new Error('Type specification needs to be an array of predicates!');
+	}
 	types.forEach(function(argSpec, specIndex){
 		// If encountering a specification for a non-mandatory argument which is not present, skip further processing of this spec.
 		if(specIndex >= callHandler.length && specIndex >= args.length){
@@ -29,7 +32,7 @@ function checkArguments(callHandler, args, types){
 					matching = false;
 				}
 				break;
-			//TODO: Add "object" type support with recursive type validation.
+			//TODO: Add "object" type support with recursive type validation (integrate with Interfaces, anyone?).
 			//TODO: In the "object" case, consider accepting RegExp objects for validating strings, too.
 			default:
 				throw new Error('polymorph: Invalid argument specification encountered while checking argument types for routing');
@@ -44,6 +47,7 @@ function polymorph(backingFunctions, options){
 	if(!options){
 		options = {};
 	}
+	var unambigiousOnly = (typeof(options.unambigiousOnly) !== 'undefined') ? Boolean(options.unambigiousOnly) : true;
 	return (function routePolymorphicCall(){
 		var args = Array.prototype.slice.call(arguments);
 		// We now have the call arguments as an array - figure out which backing function to use.
@@ -52,7 +56,6 @@ function polymorph(backingFunctions, options){
 			if(typeof(callHandler) !== 'function'){
 				throw new Error('polymorph: All elements in the array argument must be functions!');
 			}
-			//TODO: Define and clearly document against which values the arity and the arg count are compared.
 			if(callHandler.length === args.length || (options.allowLowerArity && callHandler.length < args.length) || (options.allowHigherArity && callHandler.length > args.length)){
 				// The function's arity matches our constraints - check the argument types:
 				if(typeof(callHandler.polymorph) === 'object' && callHandler.polymorph !== null && Array.isArray(callHandler.polymorph.types)){
@@ -68,6 +71,9 @@ function polymorph(backingFunctions, options){
 			}
 		});
 		if(appropriateFunctions.length >= 1){
+			if(appropriateFunctions.length > 1 && unambigiousOnly){
+				throw new Error('polymorph: Multiple candidate functions match, but unambigiousOnly is enabled. Aborting.');
+			}
 			// Exactly one function found. Great!
 			return appropriateFunctions[0].apply(this, args);
 		}
